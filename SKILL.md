@@ -217,3 +217,39 @@ curl "https://legis.senado.leg.br/dadosabertos/materia/movimentacoes/{codigo}.js
 - API v1 `/materia/{sigla}/{numero}/{ano}` is deprecated since 2025; prefer `/processo` or `/materia/pesquisa/lista`
 - iCal feed available for committee agenda: `/comissao/agenda/atual/iCal`
 - Full endpoint list: see `references/api-endpoints.md`
+
+---
+
+## Python Client (async)
+
+You can use the async Python client for programmatic access:
+
+```python
+import asyncio
+from senado_client import get_senado_client
+
+async def main():
+    client = get_senado_client()
+    
+    # Listar senadores atuais
+    senators = await client.lista_senadores_atuais()
+    
+    # Buscar por nome
+    resultado = await client.buscar_senador_por_nome("Bolsonaro")
+    
+    # Pesquisar matérias
+    materias = await client.pesquisar_materia(sigla="PL", ano=2026)
+    
+    # Votações da semana
+    from datetime import date, timedelta
+    votacoes = await client.get_votacoes_periodo(
+        date.today() - timedelta(days=7),
+        date.today()
+    )
+    
+    await client.close()
+
+asyncio.run(main())
+```
+
+Requires: `pip install httpx`

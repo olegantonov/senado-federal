@@ -24,10 +24,41 @@ Uso:
             await client.close()
 """
 import asyncio
+import logging
 from datetime import date, timedelta
 from typing import Any
 
 import httpx
+
+
+# Configurar logger
+logger = logging.getLogger(__name__)
+
+
+# Exceções customizadas
+class SenadoAPIError(Exception):
+    """Erro base para erros da API do Senado."""
+    pass
+
+
+class SenadoConnectionError(SenadoAPIError):
+    """Erro de conexão com a API."""
+    pass
+
+
+class SenadoTimeoutError(SenadoAPIError):
+    """Timeout ao conectar com a API."""
+    pass
+
+
+class SenadoNotFoundError(SenadoAPIError):
+    """Recurso não encontrado."""
+    pass
+
+
+class SenadoValidationError(SenadoAPIError):
+    """Erro de validação de parâmetros."""
+    pass
 
 
 BASE_URL = "https://legis.senado.leg.br/dadosabertos"
@@ -54,11 +85,64 @@ class SenadoClient:
         if self.client and not self.client.is_closed:
             await self.client.aclose()
 
-    async def _get(self, path: str, params: dict | None = None) -> dict:
+    async def _get(self, path: str, params: dict | None = None, retries: int = 3) -> dict:
+        """
+        Executa GET com retry logic e tratamento de erros.
+        
+        Args:
+            path: Caminho do endpoint
+            params: Parâmetros da query
+            retries: Número de tentativas em caso de falha
+            
+        Raises:
+            SenadoTimeoutError: Timeout na requisição
+            SenadoNotFoundError: Recurso não encontrado (404)
+            SenadoConnectionError: Erro de conexão
+            SenadoAPIError: Outros erros da API
+        """
         client = await self._get_client()
-        response = await client.get(path, params=params)
-        response.raise_for_status()
-        return response.json()
+        last_error = None
+        
+        for attempt in range(retries):
+            try:
+                logger.debug(f"Requisição para {path}, tentativa {attempt + 1}/{retries}")
+                response = await client.get(path, params=params)
+                response.raise_for_status()
+                return response.json()
+                
+            except httpx.TimeoutException as e:
+                last_error = SenadoTimeoutError(f"Timeout ao acessar {path}: {e}")
+                logger.warning(f"Timeout na tentativa {attempt + 1}/{retries}")
+                if attempt < retries - 1:
+                    await asyncio.sleep(2 ** attempt)  # Backoff exponencial
+                    
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 404:
+                    raise SenadoNotFoundError(f"Recurso não encontrado: {path}")
+                last_error = SenadoAPIError(f"Erro HTTP {e.response.status_code}: {e}")
+                if e.response.status_code >= 500:
+                    logger.warning(f"Erro {e.response.status_code} na tentativa {attempt + 1}/{retries}")
+                    if attempt < retries - 1:
+                        await asyncio.sleep(2 ** attempt)
+                        continue
+                logger.error(f"Erro HTTP: {e}")
+                break
+                
+            except httpx.ConnectError as e:
+                last_error = SenadoConnectionError(f"Erro de conexão: {e}")
+                logger.warning(f"Erro de conexão na tentativa {attempt + 1}/{retries}")
+                if attempt < retries - 1:
+                    await asyncio.sleep(2 ** attempt)
+                    
+            except Exception as e:
+                last_error = SenadoAPIError(f"Erro inesperado: {e}")
+                logger.error(f"Erro inesperado: {e}")
+                break
+        
+        if last_error:
+            raise last_error
+        
+        raise SenadoAPIError("Falha após todas as tentativas")
 
     async def _get_list(self, path: str, params: dict | None = None) -> list:
         """Executa GET e retorna lista, lidando com estrutura variável."""
@@ -83,14 +167,14 @@ class SenadoClient:
     # ========== PLENÁRIO ==========
 
     async def get_agenda_plenario_dia(self, data: date | None = None) -> dict:
-        """Agenda do plenario para um dia específico (YYYYMMDD)."""
+        """Agenda do plenário para um dia específico (YYYYMMDD)."""
         if data is None:
             data = date.today()
         data_str = data.strftime("%Y%m%d")
         return await self._get(f"/plenario/agenda/dia/{data_str}.json")
 
     async def get_agenda_plenario_mes(self, ano: int, mes: int) -> dict:
-        """Agenda do plenario para um mês (YYYYMM)."""
+        """Agenda do plenário para um mês (YYYYMM)."""
         yyyymm = f"{ano}{mes:02d}"
         return await self._get(f"/plenario/agenda/mes/{yyyymm}.json")
 
@@ -126,12 +210,12 @@ class SenadoClient:
     # ========== SENADORES ==========
 
     async def lista_senadores_atuais(self) -> list[dict]:
-        """Lista de senators em exercício."""
+        """Lista de senadores em exercício."""
         data = await self._get("/senador/lista/atual.json")
         return data.get("ListaParlamentarEmExercicio", {}).get("Parlamentares", {}).get("Parlamentar", [])
 
     async def buscar_senador_por_nome(self, nome: str) -> list[dict]:
-        """Busca senators pelo nome (contém)."""
+        """Busca senadores pelo nome (contém)."""
         todos = await self.lista_senadores_atuais()
         nome_lower = nome.lower()
         return [s for s in todos if nome_lower in s.get("IdentificacaoParlamentar", {}).get("NomeParlamentar", "").lower()]
@@ -142,13 +226,13 @@ class SenadoClient:
         return data.get("DetalheParlamentar", {}).get("Parlamentar")
 
     async def get_autorias_senador(self, codigo: str) -> list[dict]:
-        """Lista de autoria de um senator."""
+        """Lista de autorias de um senador."""
         data = await self._get(f"/senador/{codigo}/autorias.json")
         autorias = data.get("ListaAutoriasParlamentar", {}).get("Autorias", {}).get("Autoria", [])
         return autorias if isinstance(autorias, list) else [autorias] if autorias else []
 
     async def get_discursos_senador(self, codigo: str, data_inicio: date | None = None, data_fim: date | None = None) -> list[dict]:
-        """Discursos de um senator em um período."""
+        """Discursos de um senador em um período."""
         params = {}
         if data_inicio:
             params["dataIni"] = data_inicio.strftime("%Y%m%d")
@@ -192,6 +276,40 @@ class SenadoClient:
         tramitacoes = data.get("TramitacaoMateria", {}).get("Tramitacao", [])
         return tramitacoes if isinstance(tramitacoes, list) else [tramitacoes] if tramitacoes else []
 
+    # ========== NOVOS ENDPOINTS ==========
+
+    async def get_senador_votacoes(self, codigo: str) -> list[dict]:
+        """Histórico de votações de um senador."""
+        data = await self._get(f"/senador/{codigo}/votacoes.json")
+        votacoes = data.get("VotacaoParlamentar", {}).get("Votacoes", {}).get("Votacao", [])
+        return votacoes if isinstance(votacoes, list) else [votacoes] if votacoes else []
+
+    async def get_senador_comissoes(self, codigo: str) -> list[dict]:
+        """Comissões de que um senador é membro."""
+        data = await self._get(f"/senador/{codigo}/comissoes.json")
+        comissoes = data.get("MembroComissaoParlamentar", {}).get("Comissoes", {}).get("Comissao", [])
+        return comissoes if isinstance(comissoes, list) else [comissoes] if comissoes else []
+
+    async def get_senador_mandatos(self, codigo: str) -> list[dict]:
+        """Mandatos de um senador."""
+        data = await self._get(f"/senador/{codigo}/mandatos.json")
+        mandatos = data.get("MandatoParlamentar", {}).get("Mandatos", {}).get("Mandato", [])
+        return mandatos if isinstance(mandatos, list) else [mandatos] if mandatos else []
+
+    async def get_materia_por_sigla(self, sigla: str, numero: str, ano: int) -> dict | None:
+        """Busca matéria pela sigla completa (ex: PL 1234/2026)."""
+        resultados = await self.pesquisar_materia(sigla=sigla, numero=numero, ano=ano, tramitando=False)
+        return resultados[0] if resultados else None
+
+    async def pesquisar_materia_por_assunto(self, assunto: str, tramitando: bool = True) -> list[dict]:
+        """Pesquisa matérias por assunto/keyword."""
+        params: dict[str, Any] = {"assunto": assunto}
+        if tramitando:
+            params["tramitando"] = "S"
+        data = await self._get("/materia/pesquisa/lista.json", params)
+        materias = data.get("PesquisaBasicaMateria", {}).get("Materias", {}).get("Materia", [])
+        return materias if isinstance(materias, list) else [materias] if materias else []
+
     # ========== UTILITÁRIOS ==========
 
     async def get_materias_recentes(self, dias: int = 7) -> list[dict]:
@@ -212,8 +330,8 @@ class SenadoClient:
         """Votações da última semana."""
         return await self.get_votacoes_periodo(date.today() - timedelta(days=7), date.today())
 
-    async def get_agenda_semana(self) -> dict:
-        """Agenda do plenario para a semana atual."""
+    async def get_agenda_semana(self) -> list:
+        """Agenda do plenário para a semana atual."""
         hoje = date.today()
         dia_semana = hoje.weekday()
         inicio = hoje - timedelta(days=dia_semana)
@@ -270,13 +388,13 @@ async def close_senado_client():
 # ========== FACADE FUNCTIONS (uso direto) ==========
 
 async def lista_senadores_atuais() -> list[dict]:
-    """Facade: lista de senators atuais."""
+    """Facade: lista de senadores atuais."""
     client = get_senado_client()
     return await client.lista_senadores_atuais()
 
 
 async def buscar_senador(nome: str) -> list[dict]:
-    """Facade: busca senator por nome."""
+    """Facade: busca senador por nome."""
     client = get_senado_client()
     return await client.buscar_senador_por_nome(nome)
 

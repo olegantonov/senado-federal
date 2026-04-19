@@ -220,6 +220,17 @@ curl "https://legis.senado.leg.br/dadosabertos/materia/movimentacoes/{codigo}.js
 
 ---
 
+## API Quirks & Tips
+
+- **Single-item responses**: When an endpoint returns only 1 item, the Senado API may return a dict instead of a list. Always use the pattern: `isinstance(x, list) else [x] if x else []`
+- **Deeply nested JSON**: Responses are typically 3-4 levels deep (e.g., `data["ListaParlamentarEmExercicio"]["Parlamentares"]["Parlamentar"]`). The Python client's `_get_list()` uses DFS to find the first list.
+- **Date format inconsistency**: Plenário endpoints use `YYYYMMDD`; some senator endpoints also use `YYYYMMDD`; matéria pesquisa uses just `YYYY` for year filters.
+- **Processo vs Materia**: `/processo/{codigo}.json` returns richer data (autuações, situações, tramitação completa) than `/materia/{codigo}.json`. Prefer processo for detailed status tracking.
+- **API v1 deprecation**: `/materia/{sigla}/{numero}/{ano}` is deprecated since 2025. Use `/materia/pesquisa/lista.json` with params instead.
+- **Retry recommended**: The API can be slow or return 500s. The Python client implements exponential backoff (2^attempt seconds).
+
+---
+
 ## Python Client (async)
 
 You can use the async Python client for programmatic access:
@@ -253,3 +264,82 @@ asyncio.run(main())
 ```
 
 Requires: `pip install httpx`
+
+### Available Methods
+
+**Senadores:**
+- `lista_senadores_atuais()` — Senadores em exercício
+- `buscar_senador_por_nome(nome)` — Busca por nome
+- `get_senador_detalhe(codigo)` — Detalhes completos
+- `get_autorias_senador(codigo)` — Matérias de autoria
+- `get_discursos_senador(codigo, data_inicio?, data_fim?)` — Discursos
+- `get_senador_votacoes(codigo)` — Histórico de votações
+- `get_senador_comissoes(codigo)` — Comissões
+- `get_senador_mandatos(codigo)` — Mandatos
+- `get_senador_filiacoes(codigo)` — Filiações partidárias
+- `get_senador_cargos(codigo)` — Cargos exercidos
+- `get_senador_liderancas(codigo)` — Lideranças
+- `get_senador_apartes(codigo)` — Apartes/intervenções
+- `get_senador_relatorias(codigo)` — Relatorias
+- `get_senador_profissao(codigo)` — Profissão
+- `get_senador_historico_academico(codigo)` — Histórico acadêmico
+- `get_senador_licencas(codigo)` — Licenças
+
+**Matérias/Proposições:**
+- `pesquisar_materia(sigla?, numero?, ano?, tramitando?)` — Pesquisa
+- `pesquisar_materia_por_assunto(assunto, tramitando?)` — Por assunto
+- `get_materia_detalhe(codigo)` — Detalhes
+- `get_materia_movimentacoes(codigo)` — Movimentações
+- `get_materia_tramitacao(codigo)` — Tramitação
+- `get_materia_por_sigla(sigla, numero, ano)` — Por sigla completa
+- `get_materia_situacao_atual(codigo)` — Situação atual
+- `get_materia_textos(codigo)` — Textos
+- `get_materia_emendas(codigo)` — Emendas
+- `get_materia_relatorias(codigo)` — Relatorias
+- `get_materia_autoria(codigo)` — Autoria
+- `get_materias_tramitando()` — Em tramitação
+- `get_materias_atualizadas(dias?)` — Atualizadas recentemente
+
+**Plenário:**
+- `get_agenda_plenario_dia(data?)` — Agenda diária
+- `get_agenda_plenario_mes(ano, mes)` — Agenda mensal
+- `get_votacoes_periodo(data_inicio, data_fim)` — Votações em período
+- `get_resultado_plenario_dia(data)` — Resultado do dia
+- `get_resultado_plenario_mes(ano, mes)` — Resultado do mês
+- `get_votacoes_nominais_ano(ano)` — Votações nominais
+- `get_discursos_plenario(data_inicio, data_fim)` — Discursos
+- `get_encontro_plenario(codigo)` — Detalhes de sessão
+- `get_encontro_pauta(codigo)` — Pauta de sessão
+
+**Comissões:**
+- `get_lista_comissoes()` — Lista de comissões
+- `get_agenda_comissao_dia(data?)` — Agenda do dia
+- `get_agenda_comissao_periodo(data_inicio, data_fim)` — Agenda de período
+- `get_comissao_detalhe(codigo)` — Detalhes
+- `get_comissao_reuniao(codigo_reuniao)` — Reunião
+- `get_composicao_comissao(codigo)` — Membros
+- `get_lista_comissoes_mistas()` — Comissões mistas
+
+**Votação em Comissões:**
+- `get_votacao_comissao(sigla_comissao)` — Votações
+- `get_votacao_comissao_materia(sigla, numero, ano)` — Por matéria
+- `get_votacao_comissao_parlamentar(codigo)` — Por parlamentar
+
+**Composição e Lideranças:**
+- `get_mesa_senado()` — Mesa diretora do Senado
+- `get_mesa_congresso()` — Mesa do CN
+- `get_liderancas()` — Lideranças partidárias
+- `get_blocos_parlamentares()` — Blocos parlamentares
+
+**Processo:**
+- `get_processo(codigo)` — Processo legislativo completo
+
+**Autores, Legislação, Discurso:**
+- `get_autores_atuais()` — Autores atuais
+- `pesquisar_legislacao(tipo?, ano?, numero?)` — Pesquisa legislação
+- `get_discurso_texto_integral(codigo_pronunciamento)` — Texto integral
+
+**Utilitários:**
+- `get_materias_recentes(dias?)` — Matérias recentes
+- `get_votacoes_semana()` — Votações da semana
+- `get_agenda_semana()` — Agenda da semana

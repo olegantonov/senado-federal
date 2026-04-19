@@ -241,6 +241,48 @@ class SenadoClient:
         data = await self._get(f"/senador/{codigo}/discursos.json", params)
         return data.get("ListaDiscursos", {}).get("Discursos", {}).get("Discurso", [])
 
+    async def get_senador_filiacoes(self, codigo: str) -> list[dict]:
+        """Filiações partidárias de um senador."""
+        data = await self._get(f"/senador/{codigo}/filiacoes.json")
+        filiacoes = data.get("FiliacaoParlamentar", {}).get("Parlamentar", {}).get("Filiacoes", {}).get("Filiacao", [])
+        return filiacoes if isinstance(filiacoes, list) else [filiacoes] if filiacoes else []
+
+    async def get_senador_cargos(self, codigo: str) -> list[dict]:
+        """Cargos exercidos por um senador."""
+        data = await self._get(f"/senador/{codigo}/cargos.json")
+        cargos = data.get("CargoParlamentar", {}).get("Parlamentar", {}).get("Cargos", {}).get("Cargo", [])
+        return cargos if isinstance(cargos, list) else [cargos] if cargos else []
+
+    async def get_senador_liderancas(self, codigo: str) -> list[dict]:
+        """Lideranças exercidas por um senador."""
+        data = await self._get(f"/senador/{codigo}/liderancas.json")
+        liderancas = data.get("LiderancaParlamentar", {}).get("Parlamentar", {}).get("Liderancas", {}).get("Lideranca", [])
+        return liderancas if isinstance(liderancas, list) else [liderancas] if liderancas else []
+
+    async def get_senador_apartes(self, codigo: str) -> list[dict]:
+        """Apartes (intervenções) de um senador."""
+        data = await self._get(f"/senador/{codigo}/apartes.json")
+        apartes = data.get("ApartesParlamentar", {}).get("Parlamentar", {}).get("Apartes", {}).get("Aparte", [])
+        return apartes if isinstance(apartes, list) else [apartes] if apartes else []
+
+    async def get_senador_relatorias(self, codigo: str) -> list[dict]:
+        """Relatorias de um senador."""
+        data = await self._get(f"/senador/{codigo}/relatorias.json")
+        relatorias = data.get("RelatoriaParlamentar", {}).get("Parlamentar", {}).get("Relatorias", {}).get("Relatoria", [])
+        return relatorias if isinstance(relatorias, list) else [relatorias] if relatorias else []
+
+    async def get_senador_profissao(self, codigo: str) -> list[dict]:
+        """Profissão de um senador."""
+        return await self._get_list(f"/senador/{codigo}/profissao.json")
+
+    async def get_senador_historico_academico(self, codigo: str) -> list[dict]:
+        """Histórico acadêmico de um senador."""
+        return await self._get_list(f"/senador/{codigo}/historicoAcademico.json")
+
+    async def get_senador_licencas(self, codigo: str) -> list[dict]:
+        """Licenças de um senador."""
+        return await self._get_list(f"/senador/{codigo}/licencas.json")
+
     # ========== MATÉRIAS / PROPOSIÇÕES ==========
 
     async def pesquisar_materia(self, sigla: str | None = None, numero: str | None = None, ano: int | None = None, tramitando: bool = True) -> list[dict]:
@@ -309,6 +351,143 @@ class SenadoClient:
         data = await self._get("/materia/pesquisa/lista.json", params)
         materias = data.get("PesquisaBasicaMateria", {}).get("Materias", {}).get("Materia", [])
         return materias if isinstance(materias, list) else [materias] if materias else []
+
+    async def get_materia_situacao_atual(self, codigo: str) -> dict:
+        """Situação atual de uma matéria."""
+        return await self._get(f"/materia/situacaoatual/{codigo}.json")
+
+    async def get_materia_textos(self, codigo: str) -> list[dict]:
+        """Textos de uma matéria."""
+        return await self._get_list(f"/materia/textos/{codigo}.json")
+
+    async def get_materia_emendas(self, codigo: str) -> list[dict]:
+        """Emendas de uma matéria."""
+        return await self._get_list(f"/materia/emendas/{codigo}.json")
+
+    async def get_materia_relatorias(self, codigo: str) -> list[dict]:
+        """Relatorias de uma matéria."""
+        return await self._get_list(f"/materia/relatorias/{codigo}.json")
+
+    async def get_materia_autoria(self, codigo: str) -> list[dict]:
+        """Autoria de uma matéria."""
+        return await self._get_list(f"/materia/autoria/{codigo}.json")
+
+    async def get_materias_tramitando(self) -> list[dict]:
+        """Matérias atualmente em tramitação."""
+        return await self._get_list("/materia/tramitando.json")
+
+    async def get_materias_atualizadas(self, dias: int = 7) -> list[dict]:
+        """Matérias atualizadas nos últimos N dias."""
+        return await self._get_list("/materia/atualizadas.json", {"numdias": dias})
+
+    # ========== PLENÁRIO (RESULTADOS E VOTAÇÕES) ==========
+
+    async def get_resultado_plenario_dia(self, data: date) -> dict:
+        """Resultado do plenário em um dia."""
+        data_str = data.strftime("%Y%m%d")
+        return await self._get(f"/plenario/resultado/{data_str}.json")
+
+    async def get_resultado_plenario_mes(self, ano: int, mes: int) -> dict:
+        """Resultado do plenário em um mês."""
+        return await self._get(f"/plenario/resultado/mes/{ano}{mes:02d}.json")
+
+    async def get_votacoes_nominais_ano(self, ano: int) -> list[dict]:
+        """Todas as votações nominais de um ano."""
+        return await self._get_list(f"/plenario/votacao/nominal/{ano}.json")
+
+    async def get_discursos_plenario(self, data_inicio: date, data_fim: date) -> list[dict]:
+        """Discursos em plenário em um período."""
+        inicio = data_inicio.strftime("%Y%m%d")
+        fim = data_fim.strftime("%Y%m%d")
+        return await self._get_list(f"/plenario/lista/discursos/{inicio}/{fim}.json")
+
+    async def get_encontro_plenario(self, codigo: str) -> dict:
+        """Detalhes de uma sessão/encontro plenário."""
+        return await self._get(f"/plenario/encontro/{codigo}.json")
+
+    async def get_encontro_pauta(self, codigo: str) -> list[dict]:
+        """Pauta de uma sessão/encontro plenário."""
+        return await self._get_list(f"/plenario/encontro/{codigo}/pauta.json")
+
+    # ========== COMISSÕES (DETALHE) ==========
+
+    async def get_comissao_detalhe(self, codigo: str) -> dict:
+        """Detalhes de uma comissão."""
+        return await self._get(f"/comissao/{codigo}.json")
+
+    async def get_comissao_reuniao(self, codigo_reuniao: str) -> dict:
+        """Detalhes de uma reunião de comissão."""
+        return await self._get(f"/comissao/reuniao/{codigo_reuniao}.json")
+
+    async def get_composicao_comissao(self, codigo: str) -> list[dict]:
+        """Composição (membros) de uma comissão."""
+        return await self._get_list(f"/composicao/comissao/{codigo}.json")
+
+    async def get_lista_comissoes_mistas(self) -> list[dict]:
+        """Lista de comissões mistas (CN)."""
+        return await self._get_list("/comissao/lista/mistas.json")
+
+    # ========== VOTAÇÃO EM COMISSÕES ==========
+
+    async def get_votacao_comissao(self, sigla_comissao: str) -> list[dict]:
+        """Votações em uma comissão."""
+        return await self._get_list(f"/votacaoComissao/comissao/{sigla_comissao}.json")
+
+    async def get_votacao_comissao_materia(self, sigla: str, numero: str, ano: int) -> list[dict]:
+        """Votações em comissão sobre uma matéria."""
+        return await self._get_list(f"/votacaoComissao/materia/{sigla}/{numero}/{ano}.json")
+
+    async def get_votacao_comissao_parlamentar(self, codigo: str) -> list[dict]:
+        """Votações de um parlamentar em comissões."""
+        return await self._get_list(f"/votacaoComissao/parlamentar/{codigo}.json")
+
+    # ========== COMPOSIÇÃO E LIDERANÇAS ==========
+
+    async def get_mesa_senado(self) -> dict:
+        """Mesa diretora do Senado."""
+        return await self._get("/composicao/mesaSF.json")
+
+    async def get_mesa_congresso(self) -> dict:
+        """Mesa do Congresso Nacional."""
+        return await self._get("/composicao/mesaCN.json")
+
+    async def get_liderancas(self) -> dict:
+        """Lideranças partidárias."""
+        return await self._get("/composicao/lideranca.json")
+
+    async def get_blocos_parlamentares(self) -> list[dict]:
+        """Blocos parlamentares."""
+        return await self._get_list("/composicao/lista/blocos.json")
+
+    # ========== PROCESSO ==========
+
+    async def get_processo(self, codigo: str) -> dict:
+        """Processo legislativo completo de uma matéria.
+        Retorna autuações, situações, tramitação em estrutura rica.
+        Endpoint preferido sobre /materia/{codigo} para status detalhado.
+        """
+        return await self._get(f"/processo/{codigo}.json")
+
+    # ========== AUTORES, LEGISLAÇÃO, DISCURSO ==========
+
+    async def get_autores_atuais(self) -> list[dict]:
+        """Lista de autores (senadores atuais como autores)."""
+        return await self._get_list("/autor/lista/atual.json")
+
+    async def pesquisar_legislacao(self, tipo: str | None = None, ano: int | None = None, numero: str | None = None) -> list[dict]:
+        """Pesquisa legislação/normas."""
+        params: dict[str, Any] = {}
+        if tipo:
+            params["tipo"] = tipo
+        if ano:
+            params["ano"] = str(ano)
+        if numero:
+            params["numero"] = numero
+        return await self._get_list("/legislacao/lista.json", params)
+
+    async def get_discurso_texto_integral(self, codigo_pronunciamento: str) -> dict:
+        """Texto integral de um discurso/pronunciamento."""
+        return await self._get(f"/discurso/texto-integral/{codigo_pronunciamento}.json")
 
     # ========== UTILITÁRIOS ==========
 

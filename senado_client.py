@@ -686,8 +686,225 @@ class SenadoClient:
         return all_events
 
 
-# Instância global
-_client: SenadoClient | None = None
+# ===========================================================================
+# API ADM (adm.senado.gov.br/adm-dadosabertos) — Prestação de Contas
+# ===========================================================================
+
+ADM_BASE_URL = "https://adm.senado.gov.br/adm-dadosabertos"
+
+
+class SenadoAdmClient:
+    """Cliente para a API Administrativa do Senado Federal.
+    
+    Base URL: https://adm.senado.gov.br/adm-dadosabertos
+    Sem autenticao. Swagger: /adm-dadosabertos/swagger-ui/index.html
+    """
+
+    def __init__(self, timeout: float = DEFAULT_TIMEOUT):
+        self.client: httpx.AsyncClient | None = None
+        self.timeout = timeout
+
+    async def _get_client(self) -> httpx.AsyncClient:
+        if self.client is None or self.client.is_closed:
+            self.client = httpx.AsyncClient(
+                base_url=ADM_BASE_URL,
+                timeout=httpx.Timeout(self.timeout),
+                follow_redirects=True
+            )
+        return self.client
+
+    async def close(self):
+        if self.client and not self.client.is_closed:
+            await self.client.aclose()
+
+    async def _get(self, path: str, params: dict | None = None) -> Any:
+        """GET com tratamento de erros."""
+        client = await self._get_client()
+        response = await client.get(path, params=params)
+        response.raise_for_status()
+        return response.json()
+
+    # ========== SENADORES ==========
+
+    async def get_ceap(self, ano: int) -> list[dict]:
+        """Despesas da CEAP (Cota para Exercício da Atividade Parlamentar) por ano.
+        
+        Retorna todas as despesas de todos os senadores no ano informado.
+        Campos: id, tipoDocumento, ano, mes, codSenador, nomeSenador,
+                tipoDespesa, cpfCnpj, fornecedor, valor.
+        """
+        data = await self._get(f"/api/v1/senadores/despesas_ceaps/{ano}")
+        return data if isinstance(data, list) else []
+
+    async def get_ceap_senador(self, nome_senador: str, ano: int) -> list[dict]:
+        """Despesas CEAP filtradas por nome de senador (busca case-insensitive)."""
+        todas = await self.get_ceap(ano)
+        nome_lower = nome_senador.lower()
+        return [d for d in todas if nome_lower in d.get('nomeSenador', '').lower()]
+
+    async def get_auxilio_moradia(self, nome: str | None = None, estado: str | None = None, partido: str | None = None) -> list[dict]:
+        """Auxílio moradia e imóvel funcional por senador."""
+        params: dict[str, Any] = {}
+        if nome:
+            params['nomeParlamentarContains'] = nome
+        if estado:
+            params['estadoEleitoEquals'] = estado
+        if partido:
+            params['partidoEleitoEquals'] = partido
+        data = await self._get("/api/v1/senadores/auxilio-moradia", params)
+        return data if isinstance(data, list) else []
+
+    async def get_escritorios_apoio(self) -> list[dict]:
+        """Escritórios de apoio dos senadores (endereço, telefone)."""
+        data = await self._get("/api/v1/senadores/escritorios")
+        return data if isinstance(data, list) else []
+
+    async def get_senadores_aposentados(self) -> list[dict]:
+        """Senadores aposentados e suas remunerações."""
+        data = await self._get("/api/v1/senadores/aposentados")
+        return data if isinstance(data, list) else []
+
+    # ========== SERVIDORES ==========
+
+    async def get_remuneracao_servidores(self, ano: int, mes: int) -> list[dict]:
+        """Remuneração de servidores por mês/ano.
+        
+        Campos: sequencial, nome, mes, ano, remuneracao_basica,
+                vantagens_pessoais, funcao_comissionada, gratificacoes,
+                diarias, auxilios, faltas, previdencia, tipo_folha.
+        """
+        data = await self._get(f"/api/v1/servidores/remuneracoes/{ano}/{mes:02d}")
+        return data if isinstance(data, list) else []
+
+    async def get_servidores(self, tipo_vinculo: str | None = None, situacao: str | None = None, lotacao: str | None = None) -> list[dict]:
+        """Lista de servidores com filtros opcionais."""
+        params: dict[str, Any] = {}
+        if tipo_vinculo:
+            params['tipoVinculoEquals'] = tipo_vinculo
+        if situacao:
+            params['situacaoEquals'] = situacao
+        if lotacao:
+            params['lotacaoEquals'] = lotacao
+        data = await self._get("/api/v1/servidores/servidores", params)
+        return data if isinstance(data, list) else []
+
+    async def get_servidores_ativos(self) -> list[dict]:
+        """Lista de servidores ativos."""
+        data = await self._get("/api/v1/servidores/servidores/ativos")
+        return data if isinstance(data, list) else []
+
+    async def get_servidores_comissionados(self) -> list[dict]:
+        """Servidores comissionados."""
+        data = await self._get("/api/v1/servidores/servidores/comissionados")
+        return data if isinstance(data, list) else []
+
+    async def get_horas_extras(self, ano: int, mes: int) -> list[dict]:
+        """Horas extras de servidores por mês/ano."""
+        data = await self._get(f"/api/v1/servidores/horas-extras/{ano}/{mes:02d}")
+        return data if isinstance(data, list) else []
+
+    async def get_estagiarios(self) -> list[dict]:
+        """Estagiários do Senado."""
+        data = await self._get("/api/v1/servidores/estagiarios")
+        return data if isinstance(data, list) else []
+
+    async def get_pensionistas(self) -> list[dict]:
+        """Pensionistas do Senado."""
+        data = await self._get("/api/v1/servidores/pensionistas")
+        return data if isinstance(data, list) else []
+
+    async def get_remuneracao_pensionistas(self, ano: int, mes: int) -> list[dict]:
+        """Remuneração de pensionistas por mês/ano."""
+        data = await self._get(f"/api/v1/servidores/pensionistas/remuneracoes/{ano}/{mes:02d}")
+        return data if isinstance(data, list) else []
+
+    # ========== SUPRIDOS (CARTÃO CORPORATIVO) ==========
+
+    async def get_supridos(self, ano: int) -> list[dict]:
+        """Lista de servidores supridos (cartão corporativo) no ano."""
+        data = await self._get(f"/api/v1/supridos/{ano}")
+        return data if isinstance(data, list) else []
+
+    async def get_supridos_transacoes(self, ano: int) -> list[dict]:
+        """Transações do cartão corporativo no ano."""
+        data = await self._get(f"/api/v1/supridos/transacoes/{ano}")
+        return data if isinstance(data, list) else []
+
+    async def get_supridos_movimentacoes(self, ano: int) -> list[dict]:
+        """Movimentações do cartão corporativo no ano."""
+        data = await self._get(f"/api/v1/supridos/movimentacoes/{ano}")
+        return data if isinstance(data, list) else []
+
+    async def get_supridos_empenhos(self, ano: int) -> list[dict]:
+        """Empenhos do cartão corporativo no ano."""
+        data = await self._get(f"/api/v1/supridos/empenhos/{ano}")
+        return data if isinstance(data, list) else []
+
+    # ========== CONTRATAÇÕES ==========
+
+    async def get_contratos(self, fornecedor: str | None = None, cnpj: str | None = None, ano: int | None = None, objeto: str | None = None) -> list[dict]:
+        """Contratos do Senado Federal."""
+        params: dict[str, Any] = {}
+        if fornecedor:
+            params['nomeFornecedorContains'] = fornecedor
+        if cnpj:
+            params['cnpjCpfEquals'] = cnpj
+        if ano:
+            params['anoEquals'] = ano
+        if objeto:
+            params['objetoDescricaoContains'] = objeto
+        data = await self._get("/api/v1/contratacoes/contratos", params)
+        return data if isinstance(data, list) else []
+
+    async def get_licitacoes(self, numero: str | None = None, objeto: str | None = None) -> list[dict]:
+        """Licitações do Senado."""
+        params: dict[str, Any] = {}
+        if numero:
+            params['numeroEquals'] = numero
+        if objeto:
+            params['objetoContains'] = objeto
+        data = await self._get("/api/v1/contratacoes/licitacoes", params)
+        return data if isinstance(data, list) else []
+
+    async def get_notas_empenho(self, fornecedor: str | None = None, ano: int | None = None) -> list[dict]:
+        """Notas de empenho."""
+        params: dict[str, Any] = {}
+        if fornecedor:
+            params['nomeFornecedorContains'] = fornecedor
+        if ano:
+            params['anoEquals'] = ano
+        data = await self._get("/api/v1/contratacoes/notas_empenho", params)
+        return data if isinstance(data, list) else []
+
+    async def get_empresas_fornecedoras(self, nome: str | None = None, cnpj: str | None = None) -> list[dict]:
+        """Empresas fornecedoras cadastradas."""
+        params: dict[str, Any] = {}
+        if nome:
+            params['nomeContains'] = nome
+        if cnpj:
+            params['cnpjCpfEquals'] = cnpj
+        data = await self._get("/api/v1/contratacoes/empresas", params)
+        return data if isinstance(data, list) else []
+
+    async def get_terceirizados(self) -> list[dict]:
+        """Terceirizados alocados no Senado."""
+        data = await self._get("/api/v1/contratacoes/terceirizados")
+        return data if isinstance(data, list) else []
+
+
+# Instância global do cliente ADM
+_adm_client: SenadoAdmClient | None = None
+
+
+def get_senado_adm_client() -> SenadoAdmClient:
+    """Retorna instância singleton do cliente ADM."""
+    global _adm_client
+    if _adm_client is None:
+        _adm_client = SenadoAdmClient()
+    return _adm_client
+
+
+
 
 
 def get_senado_client() -> SenadoClient:

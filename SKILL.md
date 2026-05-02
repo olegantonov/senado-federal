@@ -238,27 +238,137 @@ GET /materia/distribuicao/relatoria/{sigla}.json
 
 ## Prestação de Contas & Transparência
 
-⚠️ **NOTA**: A API pública (`dadosabertos`) **NÃO disponibiliza** CEAP, declaração de bens ou remuneração. Esses dados ficam no portal de transparência (CSV/web).
+Existem **duas APIs** distintas do Senado para transparência:
 
-### Portal de Transparência
-- Site: https://www6g.senado.gov.br/transparencia/
-- CEAP: download CSV no portal
+| API | Base URL | Foco |
+|-----|----------|------|
+| Dados Abertos Legislativos | `legis.senado.leg.br/dadosabertos` | Atividade legislativa |
+| **Dados Abertos Administrativos** | `adm.senado.gov.br/adm-dadosabertos` | **CEAP, servidores, contratos** |
 
-### API Ergon — Diretores/Coordenadores (público)
+Swagger ADM: https://adm.senado.gov.br/adm-dadosabertos/swagger-ui/index.html
+
+---
+
+### API ADM — Senadores (Prestação de Contas)
+
+Base URL: `https://adm.senado.gov.br/adm-dadosabertos`
+
+```
+GET /api/v1/senadores/despesas_ceaps/{ano}     # CEAP por ano (ex: 2026) - retorna JSON
+GET /api/v1/senadores/despesas_ceaps/{ano}/csv # CEAP por ano em CSV
+  Campos: id, tipoDocumento, ano, mes, codSenador, nomeSenador,
+          tipoDespesa, cpfCnpj, fornecedor, valor, ...
+
+GET /api/v1/senadores/auxilio-moradia          # Auxílio moradia por senador
+GET /api/v1/senadores/auxilio-moradia/csv
+  ?nomeParlamentarContains=
+  ?estadoEleitoEquals=
+  ?partidoEleitoEquals=
+
+GET /api/v1/senadores/escritorios              # Escritórios de apoio
+GET /api/v1/senadores/escritorios/csv
+
+GET /api/v1/senadores/aposentados              # Senadores aposentados e remuneração
+GET /api/v1/senadores/aposentados/csv
+
+GET /api/v1/senadores/quantitativos/senadores  # Quantitativo de senadores
+GET /api/v1/senadores/quantitativos/senadores/csv
+```
+
+### API ADM — Servidores
+```
+GET /api/v1/servidores/servidores              # Lista servidores
+  ?tipoVinculoEquals=
+  ?situacaoEquals=
+  ?lotacaoEquals=
+  ?cargoEquals=
+GET /api/v1/servidores/servidores/ativos       # Apenas ativos
+GET /api/v1/servidores/servidores/efetivos     # Apenas efetivos
+GET /api/v1/servidores/servidores/comissionados
+GET /api/v1/servidores/servidores/inativos
+GET /api/v1/servidores/servidores/{formato}/csv  # Export CSV
+
+GET /api/v1/servidores/remuneracoes/{ano}/{mes}  # Remuneração mensal
+GET /api/v1/servidores/remuneracoes/{ano}/{mes}/csv
+  Campos: sequencial, nome, mes, ano, remuneracao_basica, vantagens_pessoais,
+          funcao_comissionada, gratificacoes, diarias, auxilios, ...
+
+GET /api/v1/servidores/horas-extras/{ano}/{mes}  # Horas extras
+GET /api/v1/servidores/horas-extras/{ano}/{mes}/csv
+
+GET /api/v1/servidores/estagiarios             # Estagiários
+GET /api/v1/servidores/pensionistas            # Pensionistas
+GET /api/v1/servidores/pensionistas/remuneracoes/{ano}/{mes}
+GET /api/v1/servidores/lotacoes                # Lotações
+GET /api/v1/servidores/cargos                  # Cargos
+GET /api/v1/servidores/previsao-aposentadoria  # Previsão de aposentadoria
+GET /api/v1/servidores/quantitativos/pessoal   # Quantitativo de pessoal
+GET /api/v1/servidores/quantitativos/cargos-funcoes
+```
+
+### API ADM — Supridos (Cartão Corporativo)
+```
+GET /api/v1/supridos/{ano}                     # Lista de supridos do ano
+GET /api/v1/supridos/{ano}/csv
+GET /api/v1/supridos/atosConcessao/{ano}       # Atos de concessão
+GET /api/v1/supridos/empenhos/{ano}            # Empenhos
+GET /api/v1/supridos/movimentacoes/{ano}       # Movimentações
+GET /api/v1/supridos/transacoes/{ano}          # Transações
+```
+
+### API ADM — Contratações
+```
+GET /api/v1/contratacoes/contratos             # Contratos
+  ?statusContratoParam=
+  ?nomeFornecedorContains=
+  ?cnpjCpfEquals=
+  ?numeroContains=
+  ?anoEquals=
+  ?objetoDescricaoContains=
+GET /api/v1/contratacoes/contratos/{id}/aditivos
+GET /api/v1/contratacoes/contratos/{id}/pagamentos
+GET /api/v1/contratacoes/licitacoes            # Licitações
+  ?numeroEquals=
+  ?objetoContains=
+GET /api/v1/contratacoes/licitacoes/{id}/detalhamentos
+GET /api/v1/contratacoes/notas_empenho         # Notas de empenho
+GET /api/v1/contratacoes/atas_registro_preco   # Atas de registro de preço
+GET /api/v1/contratacoes/empresas              # Empresas fornecedoras
+GET /api/v1/contratacoes/terceirizados         # Terceirizados
+GET /api/v1/contratacoes/{tipoContratacao}/{id}/itens
+GET /api/v1/contratacoes/{tipoContratacao}/{id}/garantias
+# Todos aceitam sufixo /csv para export
+```
+
+### API Ergon — Diretores/Coordenadores
 ```bash
 curl "https://adm.senado.gov.br/ergon-ng-reports/api/v1/diretores-e-coordenadores"
-# Retorna: lista de diretores, coordenadores, setores e e-mails do SF
+# Retorna: diretores, coordenadores, setores, telefones e e-mails do SF
+```
+
+### Exemplo: CEAP de 2026
+```bash
+curl "https://adm.senado.gov.br/adm-dadosabertos/api/v1/senadores/despesas_ceaps/2026" | \
+  python3 -c "
+import json, sys
+despesas = json.load(sys.stdin)
+# Filtrar por senador
+for d in despesas:
+    if 'MARCOS PONTES' in d.get('nomeSenador', ''):
+        print(f\"{d['mes']:02d}/{d['ano']} | {d['tipoDespesa'][:40]} | R$ {d.get('valor', 0)}\")
+"
 ```
 
 ### Dados Disponíveis via API (accountability)
-- ✅ Emendas parlamentares: `/orcamento/lista.json`
-- ✅ Diretores e coordenadores: API Ergon
-- ✅ Histórico de votações: `/senador/{cod}/votacoes.json`
-- ✅ Discursos: `/senador/{cod}/discursos.json`
-- ✅ Relatorias/Autorias: `/senador/{cod}/relatorias.json` e `/autorias.json`
-- ❌ CEAP/Cota parlamentar: apenas portal (CSV)
-- ❌ Declaração de bens: apenas portal
-- ❌ Remuneração gabinete: apenas portal / Ergon (auth)
+- ✅ **CEAP/Cota parlamentar**: `/api/v1/senadores/despesas_ceaps/{ano}` (ADM)
+- ✅ **Auxílio moradia**: `/api/v1/senadores/auxilio-moradia` (ADM)
+- ✅ **Escritórios de apoio**: `/api/v1/senadores/escritorios` (ADM)
+- ✅ **Remuneração servidores**: `/api/v1/servidores/remuneracoes/{ano}/{mes}` (ADM)
+- ✅ **Cartão corporativo**: `/api/v1/supridos/{ano}` (ADM)
+- ✅ **Contratos/licitações**: `/api/v1/contratacoes/contratos` (ADM)
+- ✅ **Emendas parlamentares**: `/orcamento/lista.json` (LEGIS)
+- ✅ **Votações/Discursos/Autorias**: API LEGIS (`/senador/{cod}/...`)
+- ❌ Declaração de bens: apenas portal de transparência (web)
 
 ### Today's plenary agenda
 ```bash
@@ -474,3 +584,60 @@ Requires: `pip install httpx`
 - `get_materias_recentes(dias?)` — Matérias recentes
 - `get_votacoes_semana()` — Votações da semana
 - `get_agenda_semana()` — Agenda da semana
+
+---
+
+## Python Client — API ADM (Prestação de Contas)
+
+```python
+from senado_client import get_senado_adm_client
+
+async def main():
+    adm = get_senado_adm_client()
+    
+    # CEAP do ano
+    ceap = await adm.get_ceap(2026)
+    
+    # CEAP de um senador específico
+    ceap_pontes = await adm.get_ceap_senador("Marcos Pontes", 2026)
+    
+    # Remuneração de servidores
+    remuneracao = await adm.get_remuneracao_servidores(2026, 1)
+    
+    # Contratos
+    contratos = await adm.get_contratos(objeto="limpeza")
+    
+    await adm.close()
+```
+
+### Métodos Disponíveis (`SenadoAdmClient`)
+
+**Senadores — CEAP e Benefícios:**
+- `get_ceap(ano)` — Todas as despesas CEAP do ano
+- `get_ceap_senador(nome, ano)` — CEAP filtrado por nome do senador
+- `get_auxilio_moradia(nome?, estado?, partido?)` — Auxílio moradia / imóvel funcional
+- `get_escritorios_apoio()` — Escritórios de apoio (endereço/telefone)
+- `get_senadores_aposentados()` — Senadores aposentados e remuneração
+
+**Servidores:**
+- `get_servidores(tipo_vinculo?, situacao?, lotacao?)` — Lista com filtros
+- `get_servidores_ativos()` — Ativos
+- `get_servidores_comissionados()` — Comissionados
+- `get_remuneracao_servidores(ano, mes)` — Remuneração mensal
+- `get_horas_extras(ano, mes)` — Horas extras
+- `get_estagiarios()` — Estagiários
+- `get_pensionistas()` — Pensionistas
+- `get_remuneracao_pensionistas(ano, mes)` — Remuneração de pensionistas
+
+**Supridos (Cartão Corporativo):**
+- `get_supridos(ano)` — Supridos do ano
+- `get_supridos_transacoes(ano)` — Transações
+- `get_supridos_movimentacoes(ano)` — Movimentações
+- `get_supridos_empenhos(ano)` — Empenhos
+
+**Contratações:**
+- `get_contratos(fornecedor?, cnpj?, ano?, objeto?)` — Contratos
+- `get_licitacoes(numero?, objeto?)` — Licitações
+- `get_notas_empenho(fornecedor?, ano?)` — Notas de empenho
+- `get_empresas_fornecedoras(nome?, cnpj?)` — Empresas cadastradas
+- `get_terceirizados()` — Terceirizados

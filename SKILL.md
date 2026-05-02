@@ -435,6 +435,11 @@ curl "https://legis.senado.leg.br/dadosabertos/materia/movimentacoes/{codigo}.js
 - **Processo vs Materia**: `/processo/{codigo}.json` returns richer data (autuações, situações, tramitação completa) than `/materia/{codigo}.json`. Prefer processo for detailed status tracking.
 - **API v1 deprecation**: `/materia/{sigla}/{numero}/{ano}` is deprecated since 2025. Use `/materia/pesquisa/lista.json` with params instead.
 - **Retry recommended**: The API can be slow or return 500s. The Python client implements exponential backoff (2^attempt seconds).
+- **`/composicao/comissao/{codigo}`**: requires a valid committee code from `/comissao/lista/colegiados` — passing `1` returns 400.
+- **`/plenario/agenda/mes/{data}` and `/plenario/resultado/mes/{data}`**: require format `YYYYMM` and must correspond to months with actual sessions; past months without sessions may return 400.
+- **`/votacao.json`**: requires `codigoSessao` parameter (not a date range) to return results. Use `/plenario/lista/votacao/{inicio}/{fim}` for date-based queries.
+- **ADM API base URL**: `https://adm.senado.gov.br/adm-dadosabertos` (separate from legis). No `.json` suffix needed. Returns arrays directly.
+- **Processo search**: `/processo` (no `.json` suffix) returns a raw JSON array, not a nested object. Params accept 20+ filters including `dataInicioApresentacao`, `termo`, `codigoParlamentarAutor`.
 
 ---
 

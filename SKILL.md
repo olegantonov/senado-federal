@@ -1,7 +1,7 @@
 ---
 name: senado-federal
-description: Monitor and research the Brazilian Senate (Senado Federal) legislative activity. Use when: (1) searching for Senate bills/matérias by type, author, keyword or year, (2) checking today's or upcoming plenary/committee agenda, (3) looking up senators by name, party or state, (4) tracking voting results (votações) in plenary or committees, (5) checking committee (comissão) schedules and composition, (6) monitoring specific bill tramitação/status, (7) researching senator speeches (discursos/apartes), (8) checking senator mandates, affiliations, academic history, (9) any question about the Senado Federal, senators, or Senate legislative process. Base URL: https://legis.senado.leg.br/dadosabertos — no auth required, supports .json and .xml suffixes.
-version: "1.0.1"
+description: Monitor and research the Brazilian Senate (Senado Federal) legislative activity. Use when: (1) searching for Senate bills/matérias by type, author, keyword or year, (2) checking today's or upcoming plenary/committee agenda, (3) looking up senators by name, party or state, (4) tracking voting results (votações) in plenary or committees, (5) checking committee (comissão) schedules and composition, (6) monitoring specific bill tramitação/status, (7) researching senator speeches (discursos/apartes), (8) checking senator mandates, affiliations, academic history, (9) any question about the Senado Federal, senators, or Senate legislative process, (10) tracking presidential vetoes (vetos presidenciais), (11) checking party/bancada voting orientation (orientação de bancada), (12) budget amendments/emendas parlamentares, (13) CPI requerimentos, (14) advanced processo legislativo search with multiple filters. Base URL: https://legis.senado.leg.br/dadosabertos — no auth required, supports .json and .xml suffixes.
+version: "1.1.0"
 author: "Daniel Marques"
 license: "MIT"
 ---
@@ -72,16 +72,25 @@ GET /materia/atualizadas.json           # recently updated
 GET /plenario/agenda/dia/{data}.json     # e.g. /plenario/agenda/dia/20260304.json
 GET /plenario/agenda/mes/{data}.json     # e.g. /plenario/agenda/mes/202603.json
 GET /plenario/agenda/cn/{data}.json      # Congresso Nacional joint session agenda
+GET /plenario/agenda/atual/iCal          # iCal feed agenda atual
 
 GET /plenario/resultado/{data}.json      # plenary results for a date (YYYYMMDD)
 GET /plenario/resultado/mes/{data}.json  # monthly results (YYYYMM)
+GET /plenario/resultado/cn/{data}.json   # resultado sessão CN (YYYYMMDD)
+GET /plenario/resultado/veto/{codigo}.json              # resultado de veto
+GET /plenario/resultado/veto/materia/{codigo}.json      # resultado veto sobre PL
+GET /plenario/resultado/veto/dispositivo/{codigo}.json  # resultado dispositivo de veto parcial
 
 GET /plenario/lista/votacao/{dataInicio}/{dataFim}.json  # votes in date range (YYYYMMDD)
 GET /plenario/votacao/nominal/{ano}.json  # all nominal votes in a year
+GET /plenario/votacao/orientacaoBancada/{dataSessao}.json           # orientação bancada por data
+GET /plenario/votacao/orientacaoBancada/{dataInicio}/{dataFim}.json # orientação bancada por período
 
 GET /plenario/lista/discursos/{dataInicio}/{dataFim}.json  # speeches
 GET /plenario/lista/legislaturas.json
+GET /plenario/lista/tiposComparecimento.json  # tipos de comparecimento
 GET /plenario/legislatura/{data}.json
+GET /plenario/tiposSessao.json               # tipos de sessão
 
 GET /plenario/encontro/{codigo}.json       # session detail
 GET /plenario/encontro/{codigo}/pauta.json # session agenda
@@ -94,6 +103,7 @@ GET /plenario/encontro/{codigo}/resumo.json
 GET /comissao/lista/colegiados.json      # all standing committees
 GET /comissao/lista/mistas.json          # joint CN/Congresso committees
 GET /comissao/lista/{tipo}.json          # by type
+GET /comissao/lista/tiposColegiado.json  # tipos de colegiado
 
 GET /comissao/{codigo}.json              # committee detail
 GET /comissao/agenda/{dataReferencia}.json   # YYYYMMDD
@@ -103,9 +113,14 @@ GET /comissao/agenda/atual/iCal          # iCal feed
 
 GET /comissao/reuniao/{codigoReuniao}.json
 GET /comissao/reuniao/notas/{codigoReuniao}.json
+GET /comissao/reuniao/{sigla}/documento/{tipoDocumento}.json  # doc da última reunião
 
-GET /composicao/comissao/{codigo}.json   # membership
+GET /composicao/comissao/{codigo}.json                          # membership
+GET /composicao/comissao/atual/mista/{codigo}.json             # composição atual comissão mista
 GET /composicao/comissao/resumida/mista/{codigo}/{dataInicio}/{dataFim}.json
+
+GET /comissao/cpi/{comissao}/requerimentos.json  # Requerimentos de CPI
+  ?pagina=1&tamanho=20
 ```
 
 ### Voting in Committees (VotaçãoComissão)
@@ -127,10 +142,14 @@ GET /votacao.json
 GET /composicao/mesaSF.json           # Senate presiding board
 GET /composicao/mesaCN.json           # CN presiding board
 GET /composicao/lideranca.json        # leadership
+GET /composicao/lideranca/tipos.json  # tipos de lideranças
+GET /composicao/lideranca/tipos-unidade.json  # tipos de unidades de lideranças
 GET /composicao/lista/liderancaSF.json
 GET /composicao/lista/liderancaCN.json
+GET /composicao/lista/cn/{tipo}.json  # composição comissões CN por tipo
 GET /composicao/lista/partidos.json
 GET /composicao/lista/blocos.json
+GET /composicao/lista/tiposCargo.json # tipos de cargo
 GET /composicao/bloco/{codigo}.json
 ```
 
@@ -162,9 +181,84 @@ GET /discurso/texto-integral/{codigoPronunciamento}.json
 GET /discurso/texto-binario/{codigoPronunciamento}.json
 ```
 
+### Vetos Presidenciais
+```
+GET /materia/vetos/{ano}.json         # Vetos de um ano (ex: 2026)
+GET /materia/vetos/aposrcn.json       # Vetos posteriores à RCN 1/2013 em tramitação
+GET /materia/vetos/antesrcn.json      # Vetos anteriores à RCN 1/2013 em tramitação
+GET /materia/vetos/encerrados.json    # Vetos com tramitação encerrada
+```
+
+### Orçamento e Emendas Parlamentares
+```
+GET /orcamento/lista.json              # Lotes de emendas ao orçamento
+GET /orcamento/oficios.json            # Ofícios de apoio às emendas de orçamento
+GET /orcamento/oficios/{numeroSedol}.json  # Detalhes de um ofício específico
+```
+
+### Processo Legislativo (API Avançada)
+```
+GET /processo                          # Pesquisa avançada (SEM sufixo .json, retorna array)
+  ?sigla=PL          # tipo
+  ?numero=123
+  ?ano=2026
+  ?tramitando=S
+  ?autor=            # nome do autor
+  ?codigoParlamentarAutor=
+  ?termo=            # palavra-chave no assunto
+  ?dataInicioApresentacao=YYYYMMDD
+  ?dataFimApresentacao=YYYYMMDD
+  ?numdias=          # últimos N dias
+GET /processo/{id}                     # Processo pelo ID
+GET /processo/assuntos.json            # Assuntos gerais e específicos
+GET /processo/documento.json           # Documentos de processo
+GET /processo/documento/tipos.json
+GET /processo/documento/tipos-conteudo.json
+GET /processo/emenda.json
+GET /processo/entes.json
+GET /processo/prazo.json
+GET /processo/prazo/tipos.json
+GET /processo/relatoria.json
+GET /processo/siglas.json
+GET /processo/tipos-atualizacao.json
+GET /processo/tipos-autor.json
+GET /processo/tipos-decisao.json
+GET /processo/tipos-situacao.json
+```
+
+### Distribuição de Autoria e Relatoria
+```
+GET /materia/distribuicao/autoria.json
+  ?siglaComissao=  # por comissão
+  ?codParlamentar= # por parlamentar
+GET /materia/distribuicao/relatoria/{sigla}.json
+```
+
 ---
 
-## Common Tasks
+## Prestação de Contas & Transparência
+
+⚠️ **NOTA**: A API pública (`dadosabertos`) **NÃO disponibiliza** CEAP, declaração de bens ou remuneração. Esses dados ficam no portal de transparência (CSV/web).
+
+### Portal de Transparência
+- Site: https://www6g.senado.gov.br/transparencia/
+- CEAP: download CSV no portal
+
+### API Ergon — Diretores/Coordenadores (público)
+```bash
+curl "https://adm.senado.gov.br/ergon-ng-reports/api/v1/diretores-e-coordenadores"
+# Retorna: lista de diretores, coordenadores, setores e e-mails do SF
+```
+
+### Dados Disponíveis via API (accountability)
+- ✅ Emendas parlamentares: `/orcamento/lista.json`
+- ✅ Diretores e coordenadores: API Ergon
+- ✅ Histórico de votações: `/senador/{cod}/votacoes.json`
+- ✅ Discursos: `/senador/{cod}/discursos.json`
+- ✅ Relatorias/Autorias: `/senador/{cod}/relatorias.json` e `/autorias.json`
+- ❌ CEAP/Cota parlamentar: apenas portal (CSV)
+- ❌ Declaração de bens: apenas portal
+- ❌ Remuneração gabinete: apenas portal / Ergon (auth)
 
 ### Today's plenary agenda
 ```bash
@@ -341,6 +435,40 @@ Requires: `pip install httpx`
 - `get_autores_atuais()` — Autores atuais
 - `pesquisar_legislacao(tipo?, ano?, numero?)` — Pesquisa legislação
 - `get_discurso_texto_integral(codigo_pronunciamento)` — Texto integral
+
+**Vetos Presidenciais:**
+- `get_vetos_ano(ano)` — Vetos de um ano
+- `get_vetos_apos_rcn()` — Vetos pós-RCN 1/2013 em tramitação
+- `get_vetos_antes_rcn()` — Vetos pré-RCN 1/2013
+- `get_vetos_encerrados()` — Vetos encerrados
+
+**Orientação de Bancada:**
+- `get_orientacao_bancada_data(data)` — Orientação por data
+- `get_orientacao_bancada_periodo(data_inicio, data_fim)` — Por período
+
+**Resultado Plenário CN e Vetos:**
+- `get_resultado_plenario_cn(data)` — Resultado sessão CN
+- `get_resultado_veto(codigo)` — Resultado voto de veto
+- `get_resultado_veto_materia(codigo)` — Resultado veto sobre PL
+
+**Orçamento/Emendas:**
+- `get_orcamento_lotes_emendas()` — Lotes de emendas
+- `get_orcamento_oficios()` — Ofícios de emendas
+- `get_orcamento_oficio(numero_sedol)` — Ofício específico
+
+**CPI:**
+- `get_cpi_requerimentos(comissao, pagina?, tamanho?)` — Requerimentos de CPI
+
+**Processo Legislativo (API Avançada):**
+- `pesquisar_processos(sigla?, numero?, ano?, tramitando?, autor?, assunto?, data_inicio_apresentacao?, data_fim_apresentacao?)` — Pesquisa avançada
+
+**Distribuição:**
+- `get_distribuicao_autoria_comissao(sigla_comissao?, cod_parlamentar?)` — Distribuição de autoria
+- `get_distribuicao_relatoria_comissao(sigla)` — Distribuição de relatoria
+- `get_materia_lista_tramitacao(sigla?, comissao?)` — Total em tramitação
+
+**Composição Mista:**
+- `get_composicao_comissao_mista_atual(codigo)` — Composição atual de comissão mista
 
 **Utilitários:**
 - `get_materias_recentes(dias?)` — Matérias recentes

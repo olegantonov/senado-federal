@@ -459,6 +459,105 @@ class SenadoClient:
         """Blocos parlamentares."""
         return await self._get_list("/composicao/lista/blocos.json")
 
+    # ========== VETOS ==========
+
+    async def get_vetos_ano(self, ano: int) -> list[dict]:
+        """Vetos presidenciais de um ano."""
+        return await self._get_list(f"/materia/vetos/{ano}.json")
+
+    async def get_vetos_apos_rcn(self) -> list[dict]:
+        """Vetos posteriores à RCN 1/2013 em tramitação."""
+        return await self._get_list("/materia/vetos/aposrcn.json")
+
+    async def get_vetos_antes_rcn(self) -> list[dict]:
+        """Vetos anteriores à RCN 1/2013 em tramitação."""
+        return await self._get_list("/materia/vetos/antesrcn.json")
+
+    async def get_vetos_encerrados(self) -> list[dict]:
+        """Vetos com tramitação encerrada."""
+        return await self._get_list("/materia/vetos/encerrados.json")
+
+    # ========== ORIENTAÇÃO DE BANCADA ==========
+
+    async def get_orientacao_bancada_data(self, data: date) -> dict:
+        """Orientação de bancada para votações em uma data específica (YYYYMMDD)."""
+        data_str = data.strftime("%Y%m%d")
+        return await self._get(f"/plenario/votacao/orientacaoBancada/{data_str}.json")
+
+    async def get_orientacao_bancada_periodo(self, data_inicio: date, data_fim: date) -> dict:
+        """Orientação de bancada para votações em um período."""
+        inicio = data_inicio.strftime("%Y%m%d")
+        fim = data_fim.strftime("%Y%m%d")
+        return await self._get(f"/plenario/votacao/orientacaoBancada/{inicio}/{fim}.json")
+
+    # ========== RESULTADO PLENÁRIO CN E VETOS ==========
+
+    async def get_resultado_plenario_cn(self, data: date) -> dict:
+        """Resultado da sessão plenária do Congresso Nacional em uma data."""
+        data_str = data.strftime("%Y%m%d")
+        return await self._get(f"/plenario/resultado/cn/{data_str}.json")
+
+    async def get_resultado_veto(self, codigo: str) -> dict:
+        """Resultado da votação nominal de um veto."""
+        return await self._get(f"/plenario/resultado/veto/{codigo}.json")
+
+    async def get_resultado_veto_materia(self, codigo: str) -> dict:
+        """Resultado da votação nominal do veto a um projeto de lei."""
+        return await self._get(f"/plenario/resultado/veto/materia/{codigo}.json")
+
+    # ========== ORÇAMENTO (EMENDAS PARLAMENTARES) ==========
+
+    async def get_orcamento_lotes_emendas(self) -> list[dict]:
+        """Lotes de emendas ao orçamento."""
+        return await self._get_list("/orcamento/lista.json")
+
+    async def get_orcamento_oficios(self) -> list[dict]:
+        """Lista de ofícios de apoio às emendas de orçamento."""
+        return await self._get_list("/orcamento/oficios.json")
+
+    async def get_orcamento_oficio(self, numero_sedol: str) -> dict:
+        """Detalhes de um ofício de apoio a emenda orçamentária."""
+        return await self._get(f"/orcamento/oficios/{numero_sedol}.json")
+
+    # ========== CPI ==========
+
+    async def get_cpi_requerimentos(self, comissao: str, pagina: int = 1, tamanho: int = 20) -> list[dict]:
+        """Lista de requerimentos de uma CPI."""
+        params = {"pagina": pagina, "tamanho": tamanho}
+        return await self._get_list(f"/comissao/cpi/{comissao}/requerimentos.json", params)
+
+    # ========== COMPOSIÇÃO COMISSÃO MISTA ==========
+
+    async def get_composicao_comissao_mista_atual(self, codigo: str) -> dict:
+        """Composição atual de uma comissão mista."""
+        return await self._get(f"/composicao/comissao/atual/mista/{codigo}.json")
+
+    # ========== DISTRIBUIÇÃO DE AUTORIA/RELATORIA ==========
+
+    async def get_distribuicao_autoria_comissao(self, sigla_comissao: str | None = None, cod_parlamentar: str | None = None) -> list[dict]:
+        """Distribuição de autoria de matérias por comissão e/ou parlamentar."""
+        params: dict[str, Any] = {}
+        if sigla_comissao:
+            params["siglaComissao"] = sigla_comissao
+        if cod_parlamentar:
+            params["codParlamentar"] = cod_parlamentar
+        return await self._get_list("/materia/distribuicao/autoria.json", params)
+
+    async def get_distribuicao_relatoria_comissao(self, sigla: str) -> list[dict]:
+        """Distribuição de relatoria de matérias em uma comissão."""
+        return await self._get_list(f"/materia/distribuicao/relatoria/{sigla}.json")
+
+    # ========== TRAMITAÇÃO CONSOLIDADA ==========
+
+    async def get_materia_lista_tramitacao(self, sigla: str | None = None, comissao: str | None = None) -> dict:
+        """Total de processos em tramitação por tipo ou colegiado."""
+        params: dict[str, Any] = {}
+        if sigla:
+            params["sigla"] = sigla
+        if comissao:
+            params["comissao"] = comissao
+        return await self._get("/materia/lista/tramitacao.json", params)
+
     # ========== PROCESSO ==========
 
     async def get_processo(self, codigo: str) -> dict:
@@ -467,6 +566,49 @@ class SenadoClient:
         Endpoint preferido sobre /materia/{codigo} para status detalhado.
         """
         return await self._get(f"/processo/{codigo}.json")
+
+    async def pesquisar_processos(
+        self,
+        sigla: str | None = None,
+        numero: str | None = None,
+        ano: int | None = None,
+        tramitando: bool | None = True,
+        autor: str | None = None,
+        assunto: str | None = None,
+        data_inicio_apresentacao: str | None = None,
+        data_fim_apresentacao: str | None = None,
+    ) -> list[dict]:
+        """Pesquisa avançada de processos legislativos (API /processo).
+        
+        Nota: este endpoint retorna JSON sem sufixo .json e aceita mais filtros
+        do que /materia/pesquisa/lista.
+        
+        Parâmetros de data no formato YYYYMMDD.
+        """
+        params: dict[str, Any] = {}
+        if sigla:
+            params["sigla"] = sigla
+        if numero:
+            params["numero"] = numero
+        if ano:
+            params["ano"] = str(ano)
+        if tramitando is not None:
+            params["tramitando"] = "S" if tramitando else "N"
+        if autor:
+            params["autor"] = autor
+        if assunto:
+            params["termo"] = assunto
+        if data_inicio_apresentacao:
+            params["dataInicioApresentacao"] = data_inicio_apresentacao
+        if data_fim_apresentacao:
+            params["dataFimApresentacao"] = data_fim_apresentacao
+        
+        # Endpoint /processo não usa sufixo .json
+        client = await self._get_client()
+        response = await client.get("/processo", params=params)
+        response.raise_for_status()
+        data = response.json()
+        return data if isinstance(data, list) else []
 
     # ========== AUTORES, LEGISLAÇÃO, DISCURSO ==========
 
